@@ -11,9 +11,13 @@ public enum OpenAIError: Error {
 
 public class OpenAISwift {
     fileprivate(set) var token: String?
+    fileprivate(set) var proxyEndpoint: String?
+    fileprivate(set) var defaults: String?
     
-    public init(authToken: String) {
+    public init(authToken: String?, defaults: String?=nil, proxyEndpoint: String?=nil) {
         self.token = authToken
+        self.proxyEndpoint = proxyEndpoint
+        self.defaults = defaults
     }
 }
 
@@ -24,9 +28,16 @@ extension OpenAISwift {
     ///   - model: The AI Model to Use. Set to `OpenAIModelType.gpt3(.davinci)` by default which is the most capable model
     ///   - maxTokens: The limit character for the returned response, defaults to 16 as per the API
     ///   - completionHandler: Returns an OpenAI Data Model
-    public func sendCompletion(with prompt: String, model: OpenAIModelType = .gpt3(.davinci), maxTokens: Int = 16, completionHandler: @escaping (Result<OpenAI, OpenAIError>) -> Void) {
+    public func sendCompletion(with prompt: String, model: OpenAIModelType = .gpt3(.davinci), defaults: String?, completionHandler: @escaping (Result<OpenAI, OpenAIError>) -> Void) {
         let endpoint = Endpoint.completions
-        let body = Command(prompt: prompt, model: model.modelName, maxTokens: maxTokens)
+        var body: Command!
+        if let defaults = defaults ?? self.defaults {
+            body = Command(defaults: defaults)
+            body.prompt = prompt
+            body.model = model.modelName
+        } else {
+            body = Command(prompt: prompt, model: model.modelName)
+        }
         let request = prepareRequest(endpoint, body: body)
         
         makeRequest(request: request) { result in
@@ -50,9 +61,17 @@ extension OpenAISwift {
     ///   - model: The Model to use, the only support model is `text-davinci-edit-001`
     ///   - input: The Input For Example "My nam is Adam"
     ///   - completionHandler: Returns an OpenAI Data Model
-    public func sendEdits(with instruction: String, model: OpenAIModelType = .feature(.davinci), input: String = "", completionHandler: @escaping (Result<OpenAI, OpenAIError>) -> Void) {
+    public func sendEdits(with instruction: String, model: OpenAIModelType = .feature(.davinci), input: String = "", defaults: String?, completionHandler: @escaping (Result<OpenAI, OpenAIError>) -> Void) {
         let endpoint = Endpoint.edits
-        let body = Instruction(instruction: instruction, model: model.modelName, input: input)
+        var body: Instruction!
+        if let defaults = defaults ?? self.defaults {
+            body = Instruction(defaults: defaults)
+            body.instruction = instruction
+            body.model = model.modelName
+            body.input = input
+        } else {
+            body = Instruction(instruction: instruction, model: model.modelName, input: input)
+        }
         let request = prepareRequest(endpoint, body: body)
         
         makeRequest(request: request) { result in
@@ -83,9 +102,11 @@ extension OpenAISwift {
         task.resume()
     }
     
-    private func prepareRequest<BodyType: Encodable>(_ endpoint: Endpoint, body: BodyType) -> URLRequest {
-        var urlComponents = URLComponents(url: URL(string: endpoint.baseURL())!, resolvingAgainstBaseURL: true)
-        urlComponents?.path = endpoint.path
+    private func prepareRequest<BodyType: Codable>(_ endpoint: Endpoint, body: BodyType) -> URLRequest {
+        let endpointUrlString = self.proxyEndpoint ?? endpoint.baseURL()
+        var urlComponents = URLComponents(url: URL(string: endpointUrlString)!, resolvingAgainstBaseURL: true)
+        let currentPath = urlComponents?.path ?? ""
+        urlComponents?.path = currentPath + endpoint.path
         var request = URLRequest(url: urlComponents!.url!)
         request.httpMethod = endpoint.method
         
@@ -95,10 +116,7 @@ extension OpenAISwift {
         
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         
-        let encoder = JSONEncoder()
-        if let encoded = try? encoder.encode(body) {
-            request.httpBody = encoded
-        }
+        request.httpBody = try! JSONEncoder().encode(body)
         
         return request
     }
@@ -113,9 +131,9 @@ extension OpenAISwift {
     /// - Returns: Returns an OpenAI Data Model
     @available(swift 5.5)
     @available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *)
-    public func sendCompletion(with prompt: String, model: OpenAIModelType = .gpt3(.davinci), maxTokens: Int = 16) async throws -> OpenAI {
+    public func sendCompletion(with prompt: String, model: OpenAIModelType = .gpt3(.davinci), defaults: String?) async throws -> OpenAI {
         return try await withCheckedThrowingContinuation { continuation in
-            sendCompletion(with: prompt, model: model, maxTokens: maxTokens) { result in
+            sendCompletion(with: prompt, model: model, defaults: defaults) { result in
                 continuation.resume(with: result)
             }
         }
@@ -129,9 +147,9 @@ extension OpenAISwift {
     ///   - completionHandler: Returns an OpenAI Data Model
     @available(swift 5.5)
     @available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *)
-    public func sendEdits(with instruction: String, model: OpenAIModelType = .feature(.davinci), input: String = "", completionHandler: @escaping (Result<OpenAI, OpenAIError>) -> Void) async throws -> OpenAI {
+    public func sendEdits(with instruction: String, model: OpenAIModelType = .feature(.davinci), input: String = "", defaults: String?, completionHandler: @escaping (Result<OpenAI, OpenAIError>) -> Void) async throws -> OpenAI {
         return try await withCheckedThrowingContinuation { continuation in
-            sendEdits(with: instruction, model: model, input: input) { result in
+            sendEdits(with: instruction, model: model, input: input, defaults: defaults) { result in
                 continuation.resume(with: result)
             }
         }

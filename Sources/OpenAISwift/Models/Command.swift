@@ -4,20 +4,21 @@
 
 import Foundation
 
-class Command: Encodable {
-    var prompt: String
-    var model: String
-    var maxTokens: Int
+struct Command: Codable {
+    var prompt: String = "<|endoftext|>"
+    var model: String = OpenAIModelType.gpt3(.davinci).modelName
+    var max_tokens: Int = 16
     
-    init(prompt: String, model: String, maxTokens: Int) {
-        self.prompt = prompt
-        self.model = model
-        self.maxTokens = maxTokens
-    }
-    
-    enum CodingKeys: String, CodingKey {
-        case prompt
-        case model
-        case maxTokens = "max_tokens"
+    var temperature: Float = 1
+    var top_p: Float = 1
+    var frequency_penalty: Float = 0
+    var presence_penalty: Float = 0
+    var n: Int = 1
+    var user: String?
+}
+extension Command {
+    init(defaults: String) {
+        let data = defaults.data(using: .utf8)!
+        self = try! JSONDecoder().decode(Self.self, from: data)
     }
 }

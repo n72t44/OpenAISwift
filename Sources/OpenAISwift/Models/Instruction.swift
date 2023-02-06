@@ -4,20 +4,18 @@
 
 import Foundation
 
-class Instruction: Encodable {
-    var instruction: String
-    var model: String
-    var input: String
+struct Instruction: Codable {
+    var instruction: String = "do nothing"
+    var model: String = OpenAIModelType.feature(.davinci).modelName
+    var input: String = ""
     
-    init(instruction: String, model: String, input: String) {
-        self.instruction = instruction
-        self.model = model
-        self.input = input
-    }
-    
-    enum CodingKeys: String, CodingKey {
-        case instruction
-        case model
-        case input
+    var temperature: Float = 1
+    var top_p: Float = 1
+    var n: Int = 1
+}
+extension Instruction {
+    init(defaults: String) {
+        let data = defaults.data(using: .utf8)!
+        self = try! JSONDecoder().decode(Self.self, from: data)
     }
 }
